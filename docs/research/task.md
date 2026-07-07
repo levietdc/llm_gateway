@@ -1,0 +1,25 @@
+# Danh sách công việc triển khai AI Gateway Proxy
+
+- [x] **Bước 1: Thiết lập cấu trúc dự án & Môi trường**
+  - [x] Khởi tạo thư mục dự án, tệp `pyproject.toml` (hoặc `requirements.txt`)
+  - [x] Thiết lập cấu trúc các thư mục: `app/`, `tests/`, `docker/`
+- [x] **Bước 2: Nghiên cứu kỹ thuật (Research Phase)**
+  - [x] Kích hoạt `ResearchAgent` để chọn các phân bản thư viện mới nhất
+  - [x] Thiết kế Lua Script tối ưu cho Token Bucket rate limiter
+  - [x] Xác định cấu hình chỉ mục Vector Search trong Redis Stack và embedding model
+- [/] **Bước 3: Phát triển Module Cốt lõi (Development Phase)**
+  - [/] Triển khai `DevelopAgent` thực hiện:
+    - [ ] Redis Stack Client & Layer 1 Cache (Exact SHA-256)
+    - [ ] Layer 2 Cache (Semantic Cache sử dụng RedisVL & FastEmbed)
+    - [ ] Token Bucket Rate Limiter sử dụng Lua Script
+    - [ ] Tiktoken / Tokenizers wrapper cho việc đếm token thời gian thực
+    - [ ] Mid-Stream Failover Router với luồng SSE Generator (Anthropic -> OpenAI)
+    - [ ] Tích hợp OpenTelemetry (Arize Phoenix) & Prometheus endpoint `/metrics`
+- [x] **Bước 4: Kiểm thử & Đánh giá (Testing Phase)**
+  - [x] Triển khai `TestAgent` thực hiện:
+    - [x] Viết mock server cho Anthropic & OpenAI
+    - [x] Viết bộ test suite kiểm tra: exact/semantic cache, rate limiting, mid-stream failover
+    - [x] Chạy kiểm thử tự động bằng Pytest
+- [x] **Bước 5: Đóng gói & Nghiệm thu**
+  - [x] Thiết lập Docker Compose (Redis Stack, Prometheus, Grafana, Arize Phoenix, App)
+  - [x] Viết tài liệu hướng dẫn vận hành & báo cáo Walkthrough
