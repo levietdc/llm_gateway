@@ -66,7 +66,13 @@ def estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> flo
     Estimates the cost of an LLM call in USD based on input and output tokens.
     """
     model_lower = model.lower()
-    if "claude-3-5-sonnet" in model_lower:
+    if "gemini-2.5-flash" in model_lower:
+        input_rate = 0.075 / 1_000_000
+        output_rate = 0.30 / 1_000_000
+    elif "gemini-2.5-pro" in model_lower:
+        input_rate = 1.25 / 1_000_000
+        output_rate = 5.00 / 1_000_000
+    elif "claude-3-5-sonnet" in model_lower:
         input_rate = 3.0 / 1_000_000
         output_rate = 15.0 / 1_000_000
     elif "gpt-4o-mini" in model_lower:
@@ -110,6 +116,7 @@ async def route_and_stream(
     temperature: float,
     max_tokens: Optional[int] = None,
     user_key: Optional[str] = None,
+    simulate_failover: bool = False,
 ) -> AsyncGenerator[str, None]:
     """
     Handles routing and streaming of LLM requests with mid-stream failover capability:
@@ -153,74 +160,77 @@ async def route_and_stream(
         parent_span.set_attribute("gen_ai.request.temperature", temperature)
         parent_span.set_attribute("gen_ai.usage.prompt_tokens", prompt_tokens)
         
-        is_anthropic = "claude-" in model.lower()
+        is_gemini = "gemini-" in model.lower()
         
-        if is_anthropic:
-            # Route to Anthropic first
-            parent_span.set_attribute("gen_ai.system", "anthropic")
-            anthropic_span = tracer.start_span("anthropic.messages.stream")
-            anthropic_span.set_attribute("gen_ai.request.model", model)
+        if is_gemini:
+            # Route to Google Gemini first
+            parent_span.set_attribute("gen_ai.system", "google")
+            gemini_span = tracer.start_span("gemini.messages.stream")
+            gemini_span.set_attribute("gen_ai.request.model", model)
             
             try:
-                system_prompt, anthropic_messages = openai_to_anthropic_messages(messages)
+                # Gemini uses standard OpenAI payload format
                 payload = {
                     "model": model,
-                    "messages": anthropic_messages,
-                    "max_tokens": max_tokens or 4096,
+                    "messages": messages,
                     "temperature": temperature,
                     "stream": True
                 }
-                if system_prompt:
-                    payload["system"] = system_prompt
+                if max_tokens:
+                    payload["max_tokens"] = max_tokens
                     
                 headers = {
-                    "x-api-key": settings.ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json"
+                    "Authorization": f"Bearer {settings.GEMINI_API_KEY}",
+                    "Content-Type": "application/json"
                 }
                 
-                logger.info(f"Routing to Anthropic ({model})...")
+                logger.info(f"Routing to Google Gemini ({model})...")
                 async with httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=15.0, write=None, pool=None)) as client:
-                    async with client.stream("POST", "https://api.anthropic.com/v1/messages", headers=headers, json=payload) as response:
+                    # Using Google Gemini OpenAI-compatible endpoint
+                    async with client.stream("POST", "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", headers=headers, json=payload) as response:
                         if response.status_code != 200:
                             err_body = await response.aread()
                             raise httpx.HTTPStatusError(
-                                f"Anthropic API returned {response.status_code}: {err_body.decode()}",
+                                f"Gemini API returned {response.status_code}: {err_body.decode()}",
                                 request=response.request,
                                 response=response
                             )
                             
-                        current_event = None
                         async for line in response.aiter_lines():
                             line = line.strip()
                             if not line:
                                 continue
-                            if line.startswith("event:"):
-                                current_event = line.split("event:", 1)[1].strip()
-                            elif line.startswith("data:"):
+                            if line.startswith("data:"):
                                 data_str = line.split("data:", 1)[1].strip()
+                                if data_str == "[DONE]":
+                                    break
                                 data = json.loads(data_str)
-                                
-                                if current_event == "content_block_delta":
-                                    delta_text = data.get("delta", {}).get("text", "")
-                                    partial_text += delta_text
-                                    
-                                    # TTFT metric
-                                    if ttft is None:
-                                        ttft = time.time() - start_time
-                                        llm_time_to_first_token_seconds.labels(model=model, provider="anthropic").observe(ttft)
-                                        anthropic_span.set_attribute("gen_ai.time_to_first_token", ttft)
+                                choices = data.get("choices", [])
+                                if choices:
+                                    delta_content = choices[0].get("delta", {}).get("content", "")
+                                    if delta_content:
+                                        partial_text += delta_content
                                         
-                                    yield make_openai_chunk(delta_text, model)
+                                        # TTFT metric
+                                        if ttft is None:
+                                            ttft = time.time() - start_time
+                                            llm_time_to_first_token_seconds.labels(model=model, provider="google").observe(ttft)
+                                            gemini_span.set_attribute("gen_ai.time_to_first_token", ttft)
+                                            
+                                        yield make_openai_chunk(delta_content, model)
+                                        
+                                        if simulate_failover and len(partial_text) > 30:
+                                            logger.warning("Simulating mid-stream failover by raising HTTPX ReadTimeout error...")
+                                            raise httpx.ReadTimeout("Simulated Gemini read timeout during generation")
                                     
-                anthropic_span.set_status(Status(StatusCode.OK))
-                anthropic_span.end()
+                gemini_span.set_status(Status(StatusCode.OK))
+                gemini_span.end()
                 
             except (httpx.RequestError, httpx.HTTPStatusError, Exception) as e:
-                logger.error(f"Anthropic stream failed mid-stream: {e}. Initiating failover to OpenAI...")
-                anthropic_span.record_exception(e)
-                anthropic_span.set_status(Status(StatusCode.ERROR, str(e)))
-                anthropic_span.end()
+                logger.error(f"Gemini stream failed mid-stream: {e}. Initiating failover to OpenAI...")
+                gemini_span.record_exception(e)
+                gemini_span.set_status(Status(StatusCode.ERROR, str(e)))
+                gemini_span.end()
                 
                 failover_occurred = True
         else:
@@ -381,14 +391,14 @@ async def route_and_stream(
         total_cost = estimate_cost(final_model, prompt_tokens, completion_tokens)
         
         # Record metrics
-        primary_provider = "anthropic" if is_anthropic else "openai"
+        primary_provider = "google" if is_gemini else "openai"
         status_label = "failover" if failover_occurred else "success"
         
         llm_requests_total.labels(status=status_label, model=model, provider=primary_provider).inc()
-        llm_request_duration_seconds.labels(model=final_model, provider="openai" if failover_occurred or not is_anthropic else "anthropic").observe(latency)
+        llm_request_duration_seconds.labels(model=final_model, provider="openai" if failover_occurred or not is_gemini else "google").observe(latency)
         llm_tokens_total.labels(type="prompt", model=model, provider=primary_provider).inc(prompt_tokens)
-        llm_tokens_total.labels(type="completion", model=final_model, provider="openai" if failover_occurred or not is_anthropic else "anthropic").inc(completion_tokens)
-        llm_cost_total.labels(model=final_model, provider="openai" if failover_occurred or not is_anthropic else "anthropic").inc(total_cost)
+        llm_tokens_total.labels(type="completion", model=final_model, provider="openai" if failover_occurred or not is_gemini else "google").inc(completion_tokens)
+        llm_cost_total.labels(model=final_model, provider="openai" if failover_occurred or not is_gemini else "google").inc(total_cost)
         
         # Record on parent OTel span
         parent_span.set_attribute("gen_ai.response.model", final_model)

@@ -24,6 +24,10 @@ async def test_token_counter():
     anthropic_count = count_tokens(text, "claude-3-5-sonnet-20240620")
     assert anthropic_count > 0
     
+    # Gemini count (using tiktoken)
+    gemini_count = count_tokens(text, "gemini-2.5-flash")
+    assert gemini_count > 0
+    
     # Async count
     async_count = await count_tokens_async(text, "gpt-4o")
     assert async_count == openai_count

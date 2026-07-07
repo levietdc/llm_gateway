@@ -61,7 +61,7 @@ def setup_otel():
 # Fixture to configure dummy keys (synchronous)
 @pytest.fixture
 def setup_keys(monkeypatch):
-    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "test-anthropic-key")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-gemini-key")
     monkeypatch.setattr(settings, "OPENAI_API_KEY", "test-openai-key")
 
 @pytest.mark.asyncio
@@ -75,7 +75,7 @@ async def test_normal_stream(setup_keys, setup_otel):
     
     try:
         messages = [{"role": "user", "content": "What is the capital of France?"}]
-        model = "claude-3-5-sonnet-20240620"
+        model = "gemini-2.5-flash"
         temperature = 0.7
         
         # 1. Clean cache before test
@@ -86,26 +86,24 @@ async def test_normal_stream(setup_keys, setup_otel):
             await redis_client.client.delete("rate_limit:test-normal-user")
             
         # Get baseline metrics
-        requests_before = get_counter_value(llm_requests_total, status="success", model=model, provider="anthropic")
-        duration_count_before = get_histogram_count(llm_request_duration_seconds, model=model, provider="anthropic")
-        ttft_count_before = get_histogram_count(llm_time_to_first_token_seconds, model=model, provider="anthropic")
-        prompt_tokens_before = get_counter_value(llm_tokens_total, type="prompt", model=model, provider="anthropic")
-        completion_tokens_before = get_counter_value(llm_tokens_total, type="completion", model=model, provider="anthropic")
-        cost_before = get_counter_value(llm_cost_total, model=model, provider="anthropic")
+        requests_before = get_counter_value(llm_requests_total, status="success", model=model, provider="google")
+        duration_count_before = get_histogram_count(llm_request_duration_seconds, model=model, provider="google")
+        ttft_count_before = get_histogram_count(llm_time_to_first_token_seconds, model=model, provider="google")
+        prompt_tokens_before = get_counter_value(llm_tokens_total, type="prompt", model=model, provider="google")
+        completion_tokens_before = get_counter_value(llm_tokens_total, type="completion", model=model, provider="google")
+        cost_before = get_counter_value(llm_cost_total, model=model, provider="google")
 
-        # Mock normal stream
+        # Mock normal stream (Gemini is OpenAI-compatible stream format)
         @contextlib.asynccontextmanager
         async def mock_normal_stream(method, url, **kwargs):
             response = MagicMock()
             response.status_code = 200
             
             async def mock_aiter_lines():
-                yield "event: content_block_delta"
-                yield 'data: {"delta": {"text": "The capital "}}'
-                yield "event: content_block_delta"
-                yield 'data: {"delta": {"text": "of France "}}'
-                yield "event: content_block_delta"
-                yield 'data: {"delta": {"text": "is Paris."}}'
+                yield 'data: {"choices": [{"delta": {"content": "The capital "}}]}'
+                yield 'data: {"choices": [{"delta": {"content": "of France "}}]}'
+                yield 'data: {"choices": [{"delta": {"content": "is Paris."}}]}'
+                yield 'data: [DONE]'
                 
             response.aiter_lines = mock_aiter_lines
             yield response
@@ -135,12 +133,12 @@ async def test_normal_stream(setup_keys, setup_otel):
         assert cached_response == "The capital of France is Paris."
 
         # 4. Verify Prometheus metrics
-        requests_after = get_counter_value(llm_requests_total, status="success", model=model, provider="anthropic")
-        duration_count_after = get_histogram_count(llm_request_duration_seconds, model=model, provider="anthropic")
-        ttft_count_after = get_histogram_count(llm_time_to_first_token_seconds, model=model, provider="anthropic")
-        prompt_tokens_after = get_counter_value(llm_tokens_total, type="prompt", model=model, provider="anthropic")
-        completion_tokens_after = get_counter_value(llm_tokens_total, type="completion", model=model, provider="anthropic")
-        cost_after = get_counter_value(llm_cost_total, model=model, provider="anthropic")
+        requests_after = get_counter_value(llm_requests_total, status="success", model=model, provider="google")
+        duration_count_after = get_histogram_count(llm_request_duration_seconds, model=model, provider="google")
+        ttft_count_after = get_histogram_count(llm_time_to_first_token_seconds, model=model, provider="google")
+        prompt_tokens_after = get_counter_value(llm_tokens_total, type="prompt", model=model, provider="google")
+        completion_tokens_after = get_counter_value(llm_tokens_total, type="completion", model=model, provider="google")
+        cost_after = get_counter_value(llm_cost_total, model=model, provider="google")
 
         assert requests_after == requests_before + 1
         assert duration_count_after == duration_count_before + 1
@@ -156,7 +154,7 @@ async def test_normal_stream(setup_keys, setup_otel):
         child_span = spans[0]
         parent_span = spans[1]
         
-        assert child_span.name == "anthropic.messages.stream"
+        assert child_span.name == "gemini.messages.stream"
         assert child_span.status.status_code == StatusCode.OK
         assert child_span.attributes["gen_ai.request.model"] == model
         assert "gen_ai.time_to_first_token" in child_span.attributes
@@ -165,7 +163,7 @@ async def test_normal_stream(setup_keys, setup_otel):
         assert parent_span.status.status_code == StatusCode.OK
         assert parent_span.attributes["gen_ai.request.model"] == model
         assert parent_span.attributes["gen_ai.response.model"] == model
-        assert parent_span.attributes["gen_ai.system"] == "anthropic"
+        assert parent_span.attributes["gen_ai.system"] == "google"
         assert parent_span.attributes["gen_ai.usage.completion_tokens"] > 0
         assert parent_span.attributes["gen_ai.usage.prompt_tokens"] > 0
         
@@ -185,7 +183,7 @@ async def test_mid_stream_failover(setup_keys, setup_otel):
     
     try:
         messages = [{"role": "user", "content": "Complete this story: Once upon a time..."}]
-        model = "claude-3-5-sonnet-20240620"
+        model = "gemini-2.5-flash"
         temperature = 0.7
         
         # Clean cache and rate limit
@@ -196,28 +194,27 @@ async def test_mid_stream_failover(setup_keys, setup_otel):
             await redis_client.client.delete("rate_limit:test-failover-user")
             
         # Get baseline metrics
-        requests_before = get_counter_value(llm_requests_total, status="failover", model=model, provider="anthropic")
+        requests_before = get_counter_value(llm_requests_total, status="failover", model=model, provider="google")
         duration_count_before = get_histogram_count(llm_request_duration_seconds, model="gpt-4o", provider="openai")
-        prompt_tokens_before = get_counter_value(llm_tokens_total, type="prompt", model=model, provider="anthropic")
+        prompt_tokens_before = get_counter_value(llm_tokens_total, type="prompt", model=model, provider="google")
         completion_tokens_before = get_counter_value(llm_tokens_total, type="completion", model="gpt-4o", provider="openai")
         cost_before = get_counter_value(llm_cost_total, model="gpt-4o", provider="openai")
 
         captured_openai_payloads = []
 
-        # Mock failover stream: Anthropic yields some chunks and then errors; OpenAI resumes
+        # Mock failover stream: Gemini yields some chunks and then errors; OpenAI resumes
         @contextlib.asynccontextmanager
         async def mock_failover_stream(method, url, **kwargs):
             response = MagicMock()
             response.status_code = 200
             
             async def mock_aiter_lines():
-                if "api.anthropic.com" in url:
-                    yield "event: content_block_delta"
-                    yield 'data: {"delta": {"text": "Hello, this is a response from "}}'
+                if "generativelanguage.googleapis.com" in url:
+                    yield 'data: {"choices": [{"delta": {"content": "Hello, this is a response from "}}]}'
                     raise httpx.RemoteProtocolError("Connection closed abruptly")
                 elif "api.openai.com" in url:
                     captured_openai_payloads.append(kwargs.get("json"))
-                    yield 'data: {"choices": [{"delta": {"content": "Claude which has been completed by OpenAI GPT-4o."}}]}'
+                    yield 'data: {"choices": [{"delta": {"content": "Gemini which has been completed by OpenAI GPT-4o."}}]}'
                     yield 'data: [DONE]'
                 else:
                     raise ValueError(f"Unexpected URL: {url}")
@@ -242,7 +239,7 @@ async def test_mid_stream_failover(setup_keys, setup_otel):
                 data_json = json.loads(data_str)
                 response_text += data_json["choices"][0]["delta"]["content"]
                 
-        expected_full_text = "Hello, this is a response from Claude which has been completed by OpenAI GPT-4o."
+        expected_full_text = "Hello, this is a response from Gemini which has been completed by OpenAI GPT-4o."
         assert response_text == expected_full_text
         assert received_chunks[-1] == "data: [DONE]\n\n"
 
@@ -267,9 +264,9 @@ async def test_mid_stream_failover(setup_keys, setup_otel):
         assert cached_response == expected_full_text
 
         # 4. Verify Prometheus metrics
-        requests_after = get_counter_value(llm_requests_total, status="failover", model=model, provider="anthropic")
+        requests_after = get_counter_value(llm_requests_total, status="failover", model=model, provider="google")
         duration_count_after = get_histogram_count(llm_request_duration_seconds, model="gpt-4o", provider="openai")
-        prompt_tokens_after = get_counter_value(llm_tokens_total, type="prompt", model=model, provider="anthropic")
+        prompt_tokens_after = get_counter_value(llm_tokens_total, type="prompt", model=model, provider="google")
         completion_tokens_after = get_counter_value(llm_tokens_total, type="completion", model="gpt-4o", provider="openai")
         cost_after = get_counter_value(llm_cost_total, model="gpt-4o", provider="openai")
 
@@ -283,25 +280,25 @@ async def test_mid_stream_failover(setup_keys, setup_otel):
         spans = exporter.get_finished_spans()
         assert len(spans) == 3
         
-        anthropic_span = next(s for s in spans if s.name == "anthropic.messages.stream")
+        gemini_span = next(s for s in spans if s.name == "gemini.messages.stream")
         openai_span = next(s for s in spans if s.name == "openai.failover.stream")
         parent_span = next(s for s in spans if s.name == "chat.completions")
         
-        assert anthropic_span.status.status_code == StatusCode.ERROR
+        assert gemini_span.status.status_code == StatusCode.ERROR
         assert openai_span.status.status_code == StatusCode.OK
         assert parent_span.status.status_code == StatusCode.OK
         
-        assert anthropic_span.attributes["gen_ai.request.model"] == model
+        assert gemini_span.attributes["gen_ai.request.model"] == model
         assert openai_span.attributes["gen_ai.request.model"] == "gpt-4o"
         
         assert parent_span.attributes["gen_ai.request.model"] == model
         assert parent_span.attributes["gen_ai.response.model"] == "gpt-4o"
-        assert parent_span.attributes["gen_ai.system"] == "anthropic"
+        assert parent_span.attributes["gen_ai.system"] == "google"
         assert parent_span.attributes["gen_ai.usage.completion_tokens"] > 0
         assert parent_span.attributes["gen_ai.usage.prompt_tokens"] > 0
         
-        assert anthropic_span.parent is not None
-        assert anthropic_span.parent.span_id == parent_span.context.span_id
+        assert gemini_span.parent is not None
+        assert gemini_span.parent.span_id == parent_span.context.span_id
         assert openai_span.parent is not None
         assert openai_span.parent.span_id == parent_span.context.span_id
     finally:

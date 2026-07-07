@@ -69,7 +69,7 @@ def count_tokens(text: str, model: str) -> int:
         return 0
         
     model_lower = model.lower()
-    if "gpt-" in model_lower or "o1-" in model_lower:
+    if "gpt-" in model_lower or "o1-" in model_lower or "gemini-" in model_lower:
         return get_openai_token_count(text, model)
     elif "claude-" in model_lower:
         return get_anthropic_token_count(text, model)

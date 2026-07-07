@@ -5,7 +5,8 @@ from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
 
 from fastapi import FastAPI, Request, status, HTTPException
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from prometheus_client import make_asgi_app
 
@@ -66,6 +67,20 @@ app = FastAPI(
 # Mount Prometheus metrics application under /metrics
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
+
+# Expose static folder and index endpoint
+try:
+    import os
+    os.makedirs("app/static", exist_ok=True)
+    app.mount("/static", StaticFiles(directory="app/static"), name="static")
+except Exception as e:
+    logger.error(f"Failed to mount static directory: {e}")
+
+@app.get("/")
+async def read_index():
+    if os.path.exists("app/static/index.html"):
+        return FileResponse("app/static/index.html")
+    return HTMLResponse("<h3>AI Gateway Dashboard: Frontend is starting up. Please refresh in a moment.</h3>")
 
 # Request validation schemas
 class ChatCompletionRequest(BaseModel):
@@ -139,6 +154,11 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
     # --- Cache Miss: Route to provider(s) ---
     logger.info("Cache Miss. Routing request to LLM upstream.")
     
+    # Extract failover simulation header
+    simulate_failover = request.headers.get("x-simulate-failover", "false").lower() == "true"
+    if simulate_failover:
+        logger.info("Simulation of failover requested via request header x-simulate-failover.")
+    
     if req.stream:
         # Return Streaming Response yielding SSE events
         return StreamingResponse(
@@ -147,7 +167,8 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
                 model=req.model,
                 temperature=req.temperature,
                 max_tokens=req.max_tokens,
-                user_key=user_key
+                user_key=user_key,
+                simulate_failover=simulate_failover
             ),
             media_type="text/event-stream"
         )
@@ -161,7 +182,8 @@ async def chat_completions(req: ChatCompletionRequest, request: Request):
                 model=req.model,
                 temperature=req.temperature,
                 max_tokens=req.max_tokens,
-                user_key=user_key
+                user_key=user_key,
+                simulate_failover=simulate_failover
             ):
                 if chunk.startswith("data: "):
                     data_str = chunk[len("data: "):].strip()

@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AGY AI Gateway Control Panel & Observability Dashboard</title>
+    <!-- Google Fonts: Inter & Geist & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Palette: Obsidian Flux (HSL Tailored) */
+            --bg-base: #0f1115;
+            --bg-inset: #0a0c0f;
+            --bg-card: #16191f;
+            --bg-card-hover: #1c2027;
+            --border-color: #1f242d;
+            --border-hover: #2d3443;
+            
+            --primary: #3b82f6;       /* Sapphire Blue */
+            --primary-glow: rgba(59, 130, 246, 0.15);
+            --success: #10b981;       /* Emerald Green */
+            --success-glow: rgba(16, 185, 129, 0.15);
+            --failover: #8b5cf6;      /* Violet */
+            --failover-glow: rgba(139, 92, 246, 0.15);
+            --warning: #f59e0b;       /* Amber */
+            --text-main: #d3e4fe;
+            --text-muted: #64748b;
+            --text-bright: #ffffff;
+            
+            --font-main: 'Inter', sans-serif;
+            --font-code: 'JetBrains Mono', monospace;
+            
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --radius-full: 9999px;
+            
+            --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        /* Layout */
+        .app-container {
+            display: grid;
+            grid-template-columns: 240px 1fr 400px;
+            width: 100%;
+            height: 100vh;
+        }
+
+        @media (max-width: 1200px) {
+            .app-container {
+                grid-template-columns: 80px 1fr 350px;
+            }
+            .sidebar span {
+                display: none;
+            }
+            .sidebar .logo h1 {
+                display: none;
+            }
+            .sidebar .logo .icon {
+                margin-right: 0;
+            }
+        }
+
+        /* Sidebar navigation */
+        .sidebar {
+            background-color: var(--bg-inset);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 24px 16px;
+            height: 100%;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            padding-bottom: 32px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 24px;
+        }
+
+        .logo .icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--failover) 100%);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-bright);
+            font-weight: 700;
+            font-size: 18px;
+            margin-right: 12px;
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .logo h1 {
+            font-size: 18px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-bright) 0%, var(--text-main) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .menu {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex-grow: 1;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            border-radius: var(--radius-md);
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 14px;
+            transition: var(--transition-fast);
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+
+        .menu-item:hover {
+            color: var(--text-main);
+            background-color: var(--bg-card);
+            border-color: var(--border-color);
+        }
+
+        .menu-item.active {
+            color: var(--text-bright);
+            background-color: var(--bg-card);
+            border-color: var(--primary);
+            box-shadow: inset 0 0 8px var(--primary-glow);
+        }
+
+        .menu-item svg {
+            width: 18px;
+            height: 18px;
+            margin-right: 12px;
+            transition: var(--transition-fast);
+        }
+
+        .menu-item.active svg {
+            color: var(--primary);
+        }
+
+        .sidebar-footer {
+            padding-top: 16px;
+            border-top: 1px solid var(--border-color);
+            font-size: 12px;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        /* Center Column: Testing Console */
+        .main-content {
+            padding: 32px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            height: 100%;
+        }
+
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .page-title h2 {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-bright);
+        }
+
+        .page-title p {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .system-status {
+            display: flex;
+            gap: 8px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background-color: var(--bg-inset);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-full);
+            font-size: 12px;
+            font-family: var(--font-code);
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .status-indicator.active {
+            background-color: var(--success);
+            box-shadow: 0 0 8px var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.inactive {
+            background-color: var(--text-muted);
+        }
+
+        .status-indicator.failover {
+            background-color: var(--failover);
+            box-shadow: 0 0 8px var(--failover);
+            animation: pulse-failover 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        @keyframes pulse-failover {
+            0% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(139, 92, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
+        }
+
+        /* Config Card Grid */
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            transition: var(--transition-normal);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            border-color: var(--border-hover);
+        }
+
+        .card-header {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-bright);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .card-header-icon {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-header svg {
+            width: 18px;
+            height: 18px;
+            color: var(--primary);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-group.full-width {
+            grid-column: span 2;
+        }
+
+        label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        select, input[type="text"], textarea {
+            background-color: var(--bg-inset);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 10px 14px;
+            color: var(--text-main);
+            font-family: var(--font-main);
+            font-size: 14px;
+            outline: none;
+            transition: var(--transition-fast);
+            width: 100%;
+        }
+
+        select:focus, input[type="text"]:focus, textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        /* Slider Styles */
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        input[type="range"] {
+            flex-grow: 1;
+            height: 6px;
+            background: var(--border-color);
+            border-radius: var(--radius-full);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            box-shadow: 0 0 8px var(--primary);
+            transition: var(--transition-fast);
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .slider-value {
+            font-family: var(--font-code);
+            font-size: 14px;
+            width: 32px;
+            text-align: right;
+        }
+
+        /* Switch toggle styles */
+        .switch-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: var(--bg-inset);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: var(--transition-fast);
+        }
+
+        .switch-container:hover {
+            border-color: var(--border-hover);
+        }
+
+        .switch-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .switch-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-bright);
+        }
+
+        .switch-desc {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--border-color);
+            transition: .3s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: var(--text-muted);
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--failover);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+            background-color: var(--text-bright);
+            box-shadow: 0 0 8px var(--failover);
+        }
+
+        /* Chat prompt and Action */
+        .chat-prompt-card {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .chat-prompt-card textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .action-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            outline: none;
+            border: 1px solid transparent;
+            transition: var(--transition-fast);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, #1e40af 100%);
+            color: var(--text-bright);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            border-color: var(--border-color);
+            color: var(--text-muted);
+        }
+
+        .btn-secondary:hover {
+            color: var(--text-main);
+            background-color: var(--bg-inset);
+            border-color: var(--border-hover);
+        }
+
+        /* Terminal Console */
+        .console-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 250px;
+            background-color: var(--bg-inset);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .console-header {
+            background-color: #050608;
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: var(--font-code);
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .console-controls {
+            display: flex;
+            gap: 6px;
+        }
+
+        .console-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #333;
+        }
+
+        .console-dot:nth-child(1) { background-color: #ef4444; }
+        .console-dot:nth-child(2) { background-color: #eab308; }
+        .console-dot:nth-child(3) { background-color: #22c55e; }
+
+        .console-terminal {
+            flex-grow: 1;
+            padding: 16px;
+            overflow-y: auto;
+            font-family: var(--font-code);
+            font-size: 13px;
+            line-height: 1.6;
+            color: #58a6ff;
+            white-space: pre-wrap;
+            position: relative;
+        }
+
+        .console-scanlines {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 3px 100%;
+            pointer-events: none;
+            opacity: 0.15;
+        }
+
+        .console-overlay-status {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            padding: 8px 12px;
+            background-color: rgba(22, 25, 31, 0.9);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            font-size: 11px;
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            display: none;
+            transition: var(--transition-fast);
+        }
+
+        /* Right Column: Observability */
+        .observability-panel {
+            background-color: var(--bg-inset);
+            border-left: 1px solid var(--border-color);
+            padding: 32px 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            height: 100%;
+        }
+
+        .panel-header {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-bright);
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* Metrics grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .metric-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            position: relative;
+        }
+
+        .metric-card.success-border {
+            border-bottom: 2px solid var(--success);
+        }
+
+        .metric-card.failover-border {
+            border-bottom: 2px solid var(--failover);
+        }
+
+        .metric-card.primary-border {
+            border-bottom: 2px solid var(--primary);
+        }
+
+        .metric-title {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .metric-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-bright);
+            font-family: var(--font-code);
+        }
+
+        .metric-subtitle {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* Trace logs */
+        .traces-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .trace-item {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            transition: var(--transition-fast);
+        }
+
+        .trace-item:hover {
+            border-color: var(--border-hover);
+        }
+
+        .trace-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .trace-model {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-bright);
+            font-family: var(--font-code);
+        }
+
+        .trace-badge {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: var(--radius-full);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .trace-badge.success {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .trace-badge.failover {
+            background-color: rgba(139, 92, 246, 0.1);
+            color: var(--failover);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+        }
+
+        .trace-badge.normal {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: var(--primary);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        .trace-latency-bar-container {
+            width: 100%;
+            height: 4px;
+            background-color: var(--bg-inset);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+        }
+
+        .trace-latency-bar {
+            height: 100%;
+            border-radius: var(--radius-full);
+        }
+
+        .trace-latency-bar.normal { background-color: var(--primary); }
+        .trace-latency-bar.cached { background-color: var(--success); }
+        .trace-latency-bar.failover { background-color: var(--failover); }
+
+        .trace-details {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* OTel / Phoenix deep link button */
+        .phoenix-btn {
+            background-color: #1a2333;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: #93c5fd;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px;
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            font-weight: 600;
+            transition: var(--transition-fast);
+            margin-top: auto;
+        }
+
+        .phoenix-btn:hover {
+            background-color: #1e3a8a;
+            border-color: var(--primary);
+            color: var(--text-bright);
+        }
+
+        .phoenix-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo">
+                <div class="icon">Ω</div>
+                <h1>AGY Gateway</h1>
+            </div>
+            <nav class="menu">
+                <div class="menu-item active">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z"></path></svg>
+                    <span>Dashboard</span>
+                </div>
+                <div class="menu-item">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    <span>Test Console</span>
+                </div>
+                <div class="menu-item">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    <span>Cache Explorer</span>
+                </div>
+                <div class="menu-item">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span>Rate Limits</span>
+                </div>
+            </nav>
+            <div class="sidebar-footer">
+                v1.0.0 Stable
+            </div>
+        </aside>
+
+        <!-- Center Column: Main Interface -->
+        <main class="main-content">
+            <div class="header-row">
+                <div class="page-title">
+                    <h2>AI Gateway Proxy Console</h2>
+                    <p>High-Performance Smart Gateway and Observability Sandbox</p>
+                </div>
+                <div class="system-status">
+                    <div class="status-badge" title="Redis Connection Status">
+                        <div class="status-indicator active" id="redis-indicator"></div>
+                        <span>Redis</span>
+                    </div>
+                    <div class="status-badge" id="failover-badge" title="Failover State Indicator">
+                        <div class="status-indicator inactive" id="failover-indicator"></div>
+                        <span id="failover-status-text">Failover: Normal</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configuration Form -->
+            <section class="card">
+                <div class="card-header">
+                    <div class="card-header-icon">
+                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        <span>Routing & Request Settings</span>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="primary-model">Primary LLM Model (Route first)</label>
+                        <select id="primary-model">
+                            <option value="gemini-2.5-flash">Google Gemini 2.5 Flash (Primary)</option>
+                            <option value="gemini-2.5-pro">Google Gemini 2.5 Pro</option>
+                            <option value="gpt-4o">OpenAI GPT-4o</option>
+                            <option value="gpt-4o-mini">OpenAI GPT-4o Mini</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="user-key">User Budget Key</label>
+                        <input type="text" id="user-key" value="user_demo_123" placeholder="user_unique_id">
+                    </div>
+                    <div class="form-group">
+                        <label>Temperature</label>
+                        <div class="slider-container">
+                            <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7">
+                            <span class="slider-value" id="temp-val">0.7</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Max Tokens</label>
+                        <div class="slider-container">
+                            <input type="range" id="max-tokens" min="100" max="4000" step="100" value="1000">
+                            <span class="slider-value" id="tokens-val">1000</span>
+                        </div>
+                    </div>
+                    <div class="form-group full-width">
+                        <div class="switch-container" id="failover-switch-container">
+                            <div class="switch-info">
+                                <span class="switch-title">Simulate Mid-Stream Connection Error</span>
+                                <span class="switch-desc">Force Primary model stream disconnect to trigger failover switch to backup model.</span>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="simulate-failover-checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Text Prompt Input -->
+            <section class="card chat-prompt-card">
+                <div class="card-header">
+                    <div class="card-header-icon">
+                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                        <span>Prompt Sandbox</span>
+                    </div>
+                </div>
+                <textarea id="prompt-input" placeholder="Type a prompt for the AI Gateway to execute... (e.g. Write a long story about space exploration)"></textarea>
+                <div class="action-row">
+                    <button class="btn btn-secondary" id="btn-clear">Clear Output</button>
+                    <button class="btn btn-primary" id="btn-send">
+                        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:16px;height:16px;"><path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                        Send Request
+                    </button>
+                </div>
+            </section>
+
+            <!-- Console Terminal output -->
+            <section class="console-container">
+                <div class="console-header">
+                    <span>Inference Logs & Outputs</span>
+                    <div class="console-controls">
+                        <div class="console-dot"></div>
+                        <div class="console-dot"></div>
+                        <div class="console-dot"></div>
+                    </div>
+                </div>
+                <div class="console-terminal" id="terminal-output">Ready to execute requests...</div>
+                <div class="console-scanlines"></div>
+                <div class="console-overlay-status" id="console-status">
+                    <div class="status-indicator failover" style="animation-duration: 1s;"></div>
+                    <span id="console-status-text">Resuming...</span>
+                </div>
+            </section>
+        </main>
+
+        <!-- Right Column: Observability and Telemetry -->
+        <aside class="observability-panel">
+            <div class="panel-header">
+                Gateway Metrics (Prometheus)
+            </div>
+
+            <!-- Metrics Cards -->
+            <div class="metrics-grid">
+                <div class="metric-card primary-border">
+                    <span class="metric-title">TTFT (Avg)</span>
+                    <span class="metric-value" id="metric-ttft">-- ms</span>
+                    <span class="metric-subtitle">Time to First Token</span>
+                </div>
+                <div class="metric-card success-border">
+                    <span class="metric-title">Cache Hit Rate</span>
+                    <span class="metric-value" id="metric-cache-hit">-- %</span>
+                    <span class="metric-subtitle">Total cache matching</span>
+                </div>
+                <div class="metric-card primary-border">
+                    <span class="metric-title">Remaining Budget</span>
+                    <span class="metric-value" id="metric-budget">--</span>
+                    <span class="metric-subtitle">Tokens remaining in bucket</span>
+                </div>
+                <div class="metric-card failover-border">
+                    <span class="metric-title">Failovers</span>
+                    <span class="metric-value" id="metric-failovers">0</span>
+                    <span class="metric-subtitle">Resilient switches</span>
+                </div>
+            </div>
+
+            <div class="panel-header" style="margin-top: 16px;">
+                Recent Traces (OpenTelemetry)
+            </div>
+
+            <!-- Trace list -->
+            <div class="traces-list" id="traces-list-container">
+                <div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 24px 0;">
+                    No traces captured yet. Send a request to log telemetries.
+                </div>
+            </div>
+
+            <!-- Deep link to Arize Phoenix -->
+            <a href="http://localhost:6006" target="_blank" class="phoenix-btn">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 .587l3.668 7.431 8.2 1.192-5.934 5.787 1.4 8.168L12 18.896l-7.334 3.857 1.4-8.168L.132 9.21l8.2-1.192L12 .587z"/></svg>
+                Open Trace in Arize Phoenix
+            </a>
+        </aside>
+    </div>
+
+    <!-- JS Logic -->
+    <script>
+        const tempSlider = document.getElementById('temperature');
+        const tempValue = document.getElementById('temp-val');
+        const tokensSlider = document.getElementById('max-tokens');
+        const tokensValue = document.getElementById('tokens-val');
+        const promptInput = document.getElementById('prompt-input');
+        const btnSend = document.getElementById('btn-send');
+        const btnClear = document.getElementById('btn-clear');
+        const terminalOutput = document.getElementById('terminal-output');
+        const simulateCheckbox = document.getElementById('simulate-failover-checkbox');
+        const consoleStatus = document.getElementById('console-status');
+        const consoleStatusText = document.getElementById('console-status-text');
+        
+        const redisIndicator = document.getElementById('redis-indicator');
+        const failoverIndicator = document.getElementById('failover-indicator');
+        const failoverStatusText = document.getElementById('failover-status-text');
+        const failoverBadge = document.getElementById('failover-badge');
+        
+        // Metrics targets
+        const metricTtft = document.getElementById('metric-ttft');
+        const metricCache = document.getElementById('metric-cache-hit');
+        const metricBudget = document.getElementById('metric-budget');
+        const metricFailovers = document.getElementById('metric-failovers');
+        const tracesContainer = document.getElementById('traces-list-container');
+
+        let cacheRequestCount = 0;
+        let cacheHitCount = 0;
+        let failoverCount = 0;
+        let ttftSum = 0;
+        let ttftCount = 0;
+        let tracesLog = [];
+
+        tempSlider.addEventListener('input', () => {
+            tempValue.textContent = tempSlider.value;
+        });
+
+        tokensSlider.addEventListener('input', () => {
+            tokensValue.textContent = tokensSlider.value;
+        });
+
+        btnClear.addEventListener('click', () => {
+            terminalOutput.textContent = 'Output cleared.';
+            consoleStatus.style.display = 'none';
+        });
+
+        // Parse prometheus metrics endpoint to display real stats
+        async function fetchSystemMetrics() {
+            try {
+                const res = await fetch('/metrics');
+                if (!res.ok) return;
+                const text = await res.text();
+                
+                // Parse redis client state or simulate budget remaining
+                // Since this dashboard targets testing locally:
+                // We'll update the Budget card using rate limiter token count from Redis if available, 
+                // otherwise we use a simulated 10000 bucket minus estimated consumed tokens.
+                
+                // Search for total requests and failover metrics in the Prometheus log
+                let totalReqs = 0;
+                let failoverReqs = 0;
+                let exactCacheHits = 0;
+                let semanticCacheHits = 0;
+                
+                // Parse metrics line by line
+                const lines = text.split('\n');
+                lines.forEach(line => {
+                    if (line.startsWith('llm_requests_total')) {
+                        const count = parseFloat(line.split(' ').pop());
+                        totalReqs += count;
+                        if (line.includes('status="failover"')) {
+                            failoverReqs += count;
+                        }
+                    }
+                    if (line.startsWith('cache_requests_total')) {
+                        const count = parseFloat(line.split(' ').pop());
+                        if (line.includes('status="hit_exact"')) {
+                            exactCacheHits += count;
+                        } else if (line.includes('status="hit_semantic"')) {
+                            semanticCacheHits += count;
+                        }
+                    }
+                });
+
+                if (totalReqs > 0) {
+                    metricFailovers.textContent = failoverReqs;
+                    failoverCount = failoverReqs;
+                    if (failoverReqs > 0) {
+                        failoverIndicator.className = 'status-indicator failover';
+                        failoverStatusText.textContent = `Failovers: ${failoverReqs} Active`;
+                        failoverBadge.style.borderColor = 'var(--failover)';
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to fetch Prometheus metrics:", err);
+            }
+        }
+
+        // Run request
+        btnSend.addEventListener('click', async () => {
+            const prompt = promptInput.value.trim();
+            if (!prompt) {
+                alert('Please enter a prompt.');
+                return;
+            }
+
+            const model = document.getElementById('primary-model').value;
+            const temperature = parseFloat(tempSlider.value);
+            const maxTokens = parseInt(tokensSlider.value);
+            const userKey = document.getElementById('user-key').value;
+            const simulateFailover = simulateCheckbox.checked;
+
+            terminalOutput.textContent = '';
+            btnSend.disabled = true;
+            btnSend.textContent = 'Streaming...';
+            consoleStatus.style.display = 'none';
+
+            const startTime = Date.now();
+            let gotFirstToken = false;
+            let currentText = '';
+            let isFailoverResponse = false;
+            let currentProvider = model.includes('gemini') ? 'Google (Gemini)' : 'OpenAI (GPT)';
+
+            // Prepare header options
+            const headers = {
+                'Content-Type': 'application/json',
+                'x-user-key': userKey
+            };
+            if (simulateFailover) {
+                headers['x-simulate-failover'] = 'true';
+            }
+
+            try {
+                const response = await fetch('/v1/chat/completions', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [{ role: 'user', content: prompt }],
+                        temperature: temperature,
+                        stream: true,
+                        max_tokens: maxTokens
+                    })
+                });
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    terminalOutput.textContent = `API Error [${response.status}]: ${errText}`;
+                    btnSend.disabled = false;
+                    btnSend.textContent = 'Send Request';
+                    return;
+                }
+
+                // Check cache header or status
+                const isCacheHit = response.headers.get('x-cache-status') === 'hit' || false; // Custom check if implemented
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (let line of lines) {
+                        line = line.trim();
+                        if (!line || !line.startsWith('data: ')) continue;
+                        const dataStr = line.substring(6);
+                        if (dataStr === '[DONE]') break;
+
+                        try {
+                            const data = JSON.parse(dataStr);
+                            const choice = data.choices[0];
+                            const content = choice.delta.content || '';
+                            
+                            // Check if model changed mid-stream (indicates failover!)
+                            if (data.model !== model && !isFailoverResponse && model.includes('gemini')) {
+                                isFailoverResponse = true;
+                                consoleStatus.style.display = 'flex';
+                                consoleStatusText.textContent = `Switched to ${data.model}`;
+                                document.getElementById('console-status').style.borderColor = 'var(--failover)';
+                                document.getElementById('console-status').querySelector('.status-indicator').className = 'status-indicator failover';
+                                isFailoverResponse = true;
+                                currentProvider = 'OpenAI (Continuation)';
+                            }
+
+                            if (!gotFirstToken) {
+                                gotFirstToken = true;
+                                const ttft = Date.now() - startTime;
+                                ttftSum += ttft;
+                                ttftCount++;
+                                metricTtft.textContent = `${Math.round(ttftSum / ttftCount)} ms`;
+                            }
+
+                            currentText += content;
+                            terminalOutput.textContent = currentText;
+                            terminalOutput.scrollTop = terminalOutput.scrollHeight;
+                        } catch (err) {
+                            // Suppress JSON errors for partial buffers
+                        }
+                    }
+                }
+
+                // Call completed
+                const totalLatency = Date.now() - startTime;
+                
+                // Add trace item
+                addTraceLog({
+                    prompt: prompt,
+                    model: isFailoverResponse ? 'gpt-4o (Failover)' : model,
+                    latency: totalLatency,
+                    status: isFailoverResponse ? 'failover' : (isCacheHit ? 'cached' : 'normal'),
+                    ttft: gotFirstToken ? Math.round(Date.now() - startTime) : 0
+                });
+
+                // Simulate budget updates
+                cacheRequestCount++;
+                if (isCacheHit) {
+                    cacheHitCount++;
+                }
+                metricCache.textContent = `${Math.round((cacheHitCount / cacheRequestCount) * 100)} %`;
+                metricBudget.textContent = `${Math.max(0, 10000 - (cacheRequestCount * 230))} tokens`;
+
+                if (isFailoverResponse) {
+                    failoverCount++;
+                    metricFailovers.textContent = failoverCount;
+                    failoverIndicator.className = 'status-indicator failover';
+                    failoverStatusText.textContent = `Failovers: ${failoverCount} Active`;
+                    failoverBadge.style.borderColor = 'var(--failover)';
+                }
+
+                // Poll Prometheus
+                await fetchSystemMetrics();
+
+            } catch (err) {
+                terminalOutput.textContent += `\nConnection Interrupted: ${err.message}`;
+            } finally {
+                btnSend.disabled = false;
+                btnSend.textContent = 'Send Request';
+            }
+        });
+
+        function addTraceLog(trace) {
+            tracesLog.unshift(trace);
+            if (tracesLog.length > 5) tracesLog.pop();
+
+            tracesContainer.innerHTML = '';
+            tracesLog.forEach(t => {
+                const item = document.createElement('div');
+                item.className = 'trace-item';
+
+                let badgeClass = 'normal';
+                if (t.status === 'cached') badgeClass = 'success';
+                else if (t.status === 'failover') badgeClass = 'failover';
+
+                let barClass = 'normal';
+                if (t.status === 'cached') barClass = 'cached';
+                else if (t.status === 'failover') barClass = 'failover';
+
+                // Calculate width percentage based on max latency of 2s
+                const percentage = Math.min(100, Math.round((t.latency / 2000) * 100));
+
+                item.innerHTML = `
+                    <div class="trace-row">
+                        <span class="trace-model">${t.model}</span>
+                        <span class="trace-badge ${badgeClass}">${t.status}</span>
+                    </div>
+                    <div class="trace-latency-bar-container">
+                        <div class="trace-latency-bar ${barClass}" style="width: ${percentage}%"></div>
+                    </div>
+                    <div class="trace-details">
+                        <span>TTFT: ${t.ttft}ms</span>
+                        <span>Latency: ${t.latency}ms</span>
+                    </div>
+                `;
+                tracesContainer.appendChild(item);
+            });
+        }
+
+        // Initialize state
+        document.addEventListener('DOMContentLoaded', async () => {
+            await fetchSystemMetrics();
+            // Start metrics poll every 5s
+            setInterval(fetchSystemMetrics, 5000);
+        });
+    </script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # High-Performance Resilient AI Gateway & Proxy
 
-An asynchronous, high-performance intelligent AI Gateway that sits between enterprise applications (or AI Agents) and Large Language Model (LLM) providers (Anthropic, OpenAI). 
+An asynchronous, high-performance intelligent AI Gateway that sits between enterprise applications (or AI Agents) and Large Language Model (LLM) providers (Google Gemini, OpenAI). 
 
 This gateway is architected to address the three most critical challenges of deploying GenAI in production at scale: **Cost**, **Reliability (High Availability)**, and **Observability**.
 
@@ -14,12 +14,12 @@ This gateway is architected to address the three most critical challenges of dep
 * **Graceful Degradation**: If the Redis instance lacks the RediSearch module (e.g., in minimal testing environments), the gateway automatically degrades to Layer 1 exact caching without interrupting the service.
 
 ### 2. Congestion & Budget Control: Token Bucket Rate Limiter
-* **Real-time Token Counting**: Uses `tiktoken` (for OpenAI) and Hugging Face `tokenizers` (for Anthropic) executed asynchronously on a background worker thread pool to avoid blocking the event loop.
+* **Real-time Token Counting**: Uses `tiktoken` (for OpenAI and Google Gemini) and Hugging Face `tokenizers` (for optional Anthropic models) executed asynchronously on a background worker thread pool to avoid blocking the event loop.
 * **Atomic Token Bucket (Redis Lua Script)**: Deducts input tokens pre-flight and output tokens post-stream. It automatically tracks token capacity and refill rates per user key.
 * **Infinite Loop Mitigation**: Real-time token consumption is tracked *during* streaming. If a client's budget is depleted or an agent gets trapped in an infinite generation loop, the gateway proactively terminates the SSE stream to prevent runaway costs.
 
 ### 3. Reliability: Mid-Stream Failover Router
-* **Transparent Switching**: If the primary provider (Anthropic) fails or disconnects *mid-stream* during generation, the gateway intercepts the error, extracts the `partial_text` generated so far, and seamlessly routes the remainder to the backup provider (OpenAI).
+* **Transparent Switching**: If the primary provider (Google Gemini) fails or disconnects *mid-stream* during generation, the gateway intercepts the error, extracts the `partial_text` generated so far, and seamlessly routes the remainder to the backup provider (OpenAI).
 * **System Prompt Override Pattern**: Automatically converts the state into a continuation payload for OpenAI:
   ```json
   [
@@ -47,7 +47,7 @@ sequenceDiagram
     participant GW as AI Gateway (FastAPI)
     participant Redis as Redis Stack
     participant Embed as Embedding Model (FastEmbed)
-    participant Primary as Primary LLM (Anthropic)
+    participant Primary as Primary LLM (Google Gemini)
     participant Backup as Backup LLM (OpenAI)
 
     Client->>GW: POST /v1/chat/completions (Stream)
@@ -67,7 +67,7 @@ sequenceDiagram
             alt Rate Limit Exceeded
                 GW-->>Client: 429 Too Many Requests
             else Allowed
-                GW->>Primary: Stream response from Anthropic
+                GW->>Primary: Stream response from Google Gemini
                 loop Active Generation
                     Primary-->>GW: Yield chunk
                     GW->>Redis: Deduct tokens real-time
@@ -77,7 +77,7 @@ sequenceDiagram
                         GW-->>Client: Stream OpenAI-compatible chunk
                     end
                 end
-                alt Anthropic Crashes Mid-Stream
+                alt Gemini Crashes Mid-Stream
                     GW->>Backup: Failover: Send System Prompt Override + Partial Text
                     loop Continuation Generation
                         Backup-->>GW: Yield chunk
@@ -142,7 +142,7 @@ sequenceDiagram
 ### Prerequisites
 * Python 3.11+
 * Docker & Docker Compose
-* Upstream API Keys (OpenAI API key and Anthropic API key)
+* Upstream API Keys (OpenAI API key and Google Gemini API key)
 
 ### Running Locally (Development Mode)
 
