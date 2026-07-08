@@ -25,7 +25,7 @@ async def test_token_counter():
     assert anthropic_count > 0
     
     # Gemini count (using tiktoken)
-    gemini_count = count_tokens(text, "gemini-2.5-flash")
+    gemini_count = count_tokens(text, "gemini-3.1-flash-lite")
     assert gemini_count > 0
     
     # Async count

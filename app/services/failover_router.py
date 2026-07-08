@@ -66,7 +66,10 @@ def estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> flo
     Estimates the cost of an LLM call in USD based on input and output tokens.
     """
     model_lower = model.lower()
-    if "gemini-2.5-flash" in model_lower:
+    if "gemini-3.1-flash-lite" in model_lower:
+        input_rate = 0.25 / 1_000_000
+        output_rate = 1.50 / 1_000_000
+    elif "gemini-2.5-flash" in model_lower:
         input_rate = 0.075 / 1_000_000
         output_rate = 0.30 / 1_000_000
     elif "gemini-2.5-pro" in model_lower:

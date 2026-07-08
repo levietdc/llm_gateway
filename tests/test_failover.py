@@ -75,7 +75,7 @@ async def test_normal_stream(setup_keys, setup_otel):
     
     try:
         messages = [{"role": "user", "content": "What is the capital of France?"}]
-        model = "gemini-2.5-flash"
+        model = "gemini-3.1-flash-lite"
         temperature = 0.7
         
         # 1. Clean cache before test
@@ -183,7 +183,7 @@ async def test_mid_stream_failover(setup_keys, setup_otel):
     
     try:
         messages = [{"role": "user", "content": "Complete this story: Once upon a time..."}]
-        model = "gemini-2.5-flash"
+        model = "gemini-3.1-flash-lite"
         temperature = 0.7
         
         # Clean cache and rate limit
